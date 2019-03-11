@@ -59,10 +59,7 @@ func (ss *ServiceSync) Start() {
 				continue
 			}
 			ss.logger.Infof("begin sync block from [%s]", peerID)
-			//ss.logger.Info("begin print fr info")
-			//for k, v := range ss.frontiers {
-			//	ss.logger.Info(k, v)
-			//}
+			ss.remoteFrontiers = ss.remoteFrontiers[:0:0]
 			ss.next()
 			bulkPull = bulkPull[:0:0]
 			bulkPush = bulkPush[:0:0]

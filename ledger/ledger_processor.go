@@ -200,7 +200,7 @@ func checkChangeBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error)
 		}
 	}
 
-	return 0, nil
+	return Progress, nil
 }
 
 func checkOpenBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {

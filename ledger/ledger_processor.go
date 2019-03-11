@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/qlcchain/go-qlc/common"
+	"github.com/qlcchain/go-qlc/vm/contract"
 	"time"
 
 	"github.com/pkg/errors"
@@ -22,10 +23,28 @@ const (
 	Fork
 	GapPrevious
 	GapSource
+	GapSmartContract
 	BalanceMismatch
 	UnReceivable
+	InvalidData
+	Invalid
 	Other
 )
+
+var (
+	checkBlockFn map[types.BlockType]checkBlock
+)
+
+func init() {
+	checkBlockFn[types.Send] = checkSendBlock
+	checkBlockFn[types.Receive] = checkReceiveBlock
+	checkBlockFn[types.Change] = checkChangeBlock
+	checkBlockFn[types.Open] = checkOpenBlock
+	checkBlockFn[types.ContractSend] = checkContractSendBlock
+	checkBlockFn[types.ContractReward] = checkContractReceiveBlock
+}
+
+type checkBlock func(*Ledger, *types.StateBlock) (ProcessResult, error)
 
 func (l *Ledger) Process(block types.Block) (ProcessResult, error) {
 	r, err := l.BlockCheck(block)
@@ -52,16 +71,11 @@ func (l *Ledger) BlockCheck(block types.Block) (ProcessResult, error) {
 	return Other, errors.New("invalid block")
 }
 
-func (l *Ledger) checkStateBlock(block *types.StateBlock) (ProcessResult, error) {
+func checkStatblock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {
 	hash := block.GetHash()
-	pre := block.GetPrevious()
-	link := block.GetLink()
 	address := block.GetAddress()
 
 	l.logger.Debug("process block ", hash)
-
-	// make sure smart contract token exist
-	// ...
 
 	if !block.IsValid() {
 		l.logger.Infof("invalid work (%s)", hash)
@@ -73,7 +87,7 @@ func (l *Ledger) checkStateBlock(block *types.StateBlock) (ProcessResult, error)
 		return Other, err
 	}
 
-	if blockExist == true {
+	if blockExist {
 		l.logger.Infof("block already exist (%s)", hash)
 		return Old, nil
 	}
@@ -84,88 +98,237 @@ func (l *Ledger) checkStateBlock(block *types.StateBlock) (ProcessResult, error)
 		return BadSignature, nil
 	}
 
-	if pre.IsZero() && bytes.EqualFold(address[:], link[:]) {
-		l.logger.Info("genesis block")
-		//return Progress, nil
+	return Progress, nil
+}
+
+func checkSendBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {
+	result, err := checkStatblock(l, block)
+	if err != nil {
+		return result, err
 	}
 
-	transferAmount := block.GetBalance()
-	tmExist, err := l.HasTokenMeta(address, block.GetToken())
-	if err != nil {
-		return Other, err
-	}
-	isSend := false
-	if tmExist {
-		tm, err := l.GetTokenMeta(address, block.GetToken())
-		if err != nil {
-			return Other, err
-		}
-		if pre.IsZero() {
-			l.logger.Info("fork: token meta exist, but pre hash is zero (%s)", hash)
-			return Fork, nil
-		}
-		preExist, err := l.HasStateBlock(block.GetPrevious())
-		if err != nil {
-			return Other, err
-		}
-		if !preExist {
-			l.logger.Infof("gap previous: token meta exist, but pre block not exist (%s)", hash)
-			return GapPrevious, nil
-		}
-		if block.GetPrevious() != tm.Header {
-			l.logger.Infof("fork: pre block exist, but pre hash not equal account token's header hash (%s)", hash)
-			return Fork, nil
-		}
-		if block.GetBalance().Compare(tm.Balance) == types.BalanceCompSmaller {
-			isSend = true
-			transferAmount = tm.Balance.Sub(block.GetBalance()) // send
-		} else {
-			transferAmount = block.GetBalance().Sub(tm.Balance) // receive or change
-		}
+	// check previous
+	if previous, err := l.GetStateBlock(block.Previous); err != nil {
+		return GapPrevious, nil
 	} else {
-		if !pre.IsZero() {
-			l.logger.Infof("gap previous: token meta not exist, but pre hash is not zero (%s) ", hash)
-			return GapPrevious, nil
+		//check fork
+		if tm, err := l.GetTokenMeta(block.Address, block.GetToken()); err == nil && previous.GetHash() != tm.Header {
+			return Fork, nil
 		}
-		if link.IsZero() {
-			l.logger.Infof("gap source: token meta not exist, but link hash is zero (%s)", hash)
+
+		//check balance
+		if previous.Balance.Compare(block.Balance) == types.BalanceCompSmaller {
+			return BalanceMismatch, nil
+		}
+	}
+
+	return Progress, nil
+}
+
+func checkReceiveBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {
+	result, err := checkStatblock(l, block)
+	if err != nil {
+		return result, err
+	}
+
+	// check previous
+	if previous, err := l.GetStateBlock(block.Previous); err != nil {
+		return GapPrevious, nil
+	} else {
+		//check fork
+		if tm, err := l.GetTokenMeta(block.Address, block.GetToken()); err == nil && previous.GetHash() != tm.Header {
+			return Fork, nil
+		}
+		pendingKey := types.PendingKey{
+			Address: block.Address,
+			Hash:    block.Link,
+		}
+
+		//check receive link
+		if b, err := l.HasStateBlock(block.Link); !b && err == nil {
 			return GapSource, nil
 		}
-	}
-	if !isSend {
-		if !link.IsZero() { // open or receive
-			linkExist, err := l.HasStateBlock(link)
-			if err != nil {
-				return Other, err
-			}
-			if !linkExist {
-				l.logger.Infof("gap source: open or receive block, but link block is not exist (%s)", hash)
-				return GapSource, nil
-			}
-			PendingKey := types.PendingKey{
-				Address: address,
-				Hash:    link,
-			}
-			pending, err := l.GetPending(PendingKey)
-			if err != nil {
-				if err == ErrPendingNotFound {
-					l.logger.Infof("unreceivable: open or receive block, but pending not exist (%s)", hash)
-					return UnReceivable, nil
+
+		//check pending
+		if pending, err := l.GetPending(pendingKey); err == nil {
+			if tm, err := l.GetTokenMeta(block.Address, block.Token); err == nil {
+				transferAmount := block.GetBalance().Sub(tm.Balance)
+				if !pending.Amount.Equal(transferAmount) || pending.Type != block.Token {
+					return BalanceMismatch, nil
 				}
+			} else {
 				return Other, err
 			}
-			if !pending.Amount.Equal(transferAmount) {
-				l.logger.Infof("balance mismatch: open or receive block, but pending amount(%s) not equal transfer amount(%s) (%s)", pending.Amount, transferAmount, hash)
-				return BalanceMismatch, nil
-			}
-		} else { //change
-			if !transferAmount.Equal(types.ZeroBalance) {
-				l.logger.Infof("balance mismatch: change block, but transfer amount is not 0 (%s)", hash)
+		} else if err == ErrPendingNotFound {
+			return UnReceivable, nil
+		} else {
+			return Other, err
+		}
+	}
+
+	return Progress, nil
+}
+
+func checkChangeBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {
+	result, err := checkStatblock(l, block)
+	if err != nil {
+		return result, err
+	}
+
+	// check link
+	if !block.Link.IsZero() {
+		return Other, fmt.Errorf("invalid link hash")
+	}
+
+	// check chain token
+	if block.Token != common.QLCChainToken {
+		return Other, fmt.Errorf("invalid token Id")
+	}
+
+	// check previous
+	if previous, err := l.GetStateBlock(block.Previous); err != nil {
+		return GapPrevious, nil
+	} else {
+		//check fork
+		if tm, err := l.GetTokenMeta(block.Address, block.Token); err == nil && previous.GetHash() != tm.Header {
+			return Fork, nil
+		} else {
+			//check balance
+			if block.Balance.Compare(tm.Balance) == types.BalanceCompEqual {
 				return BalanceMismatch, nil
 			}
 		}
 	}
+
+	return 0, nil
+}
+
+func checkOpenBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {
+	result, err := checkStatblock(l, block)
+	if err != nil {
+		return result, err
+	}
+
+	//check previous
+	if !block.Previous.IsZero() {
+		return Other, fmt.Errorf("open block previous is not zero")
+	}
+
+	//check link
+	if b, _ := l.HasStateBlock(block.Link); !b {
+		return GapSource, nil
+	} else {
+		//check fork
+		if _, err := l.GetTokenMeta(block.Address, block.Token); err == nil {
+			return Fork, nil
+		}
+
+		pendingKey := types.PendingKey{
+			Address: block.Address,
+			Hash:    block.Link,
+		}
+		//check pending
+		if pending, err := l.GetPending(pendingKey); err == nil {
+			if !pending.Amount.Equal(block.Balance) || pending.Type != block.Token {
+				return BalanceMismatch, nil
+			}
+		} else if err == ErrPendingNotFound {
+			return UnReceivable, nil
+		} else {
+			return Other, err
+		}
+	}
+
 	return Progress, nil
+}
+
+func checkContractSendBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {
+	result, err := checkSendBlock(l, block)
+	if err != nil {
+		return result, err
+	}
+
+	//ignore chain genesis block
+	if common.IsGenesisBlock(block) {
+		return Progress, nil
+	}
+
+	//check smart c exist
+	address := block.Address
+
+	if !contract.IsChainContract(address) {
+		if b, err := l.HasSmartContractBlock(address.ToHash()); !b && err == nil {
+			return GapSmartContract, nil
+		}
+	}
+
+	//verify data
+	if c, ok, _ := contract.GetChainContract(address, block.Data); ok {
+		clone := block.Clone()
+		if err := c.DoSend(l, clone); err == nil {
+			if bytes.EqualFold(block.Data, clone.Data) {
+				return Progress, nil
+			} else {
+				return Invalid, nil
+			}
+		} else {
+			return Other, err
+		}
+	} else {
+		//call vm.Run();
+		return Other, fmt.Errorf("can not find chain contract %s", address.String())
+	}
+}
+
+func checkContractReceiveBlock(l *Ledger, block *types.StateBlock) (ProcessResult, error) {
+	result, err := checkReceiveBlock(l, block)
+	if err != nil {
+		return result, err
+	}
+
+	//ignore chain genesis block
+	if common.IsGenesisBlock(block) {
+		return Progress, nil
+	}
+
+	//check smart c exist
+	address := block.Address
+
+	if !contract.IsChainContract(address) {
+		if b, err := l.HasSmartContractBlock(address.ToHash()); !b && err == nil {
+			return GapSmartContract, nil
+		}
+	}
+
+	//verify data
+	if c, ok, _ := contract.GetChainContract(address, block.Data); ok {
+		clone := block.Clone()
+		input, _ := l.GetStateBlock(block.Link)
+		if g, err := c.DoReceive(l, clone, input); err == nil {
+			if len(g) > 0 {
+				if bytes.EqualFold(g[0].Block.Data, block.Data) {
+					return Progress, nil
+				} else {
+					return InvalidData, nil
+				}
+			} else {
+				return Other, fmt.Errorf("can not generate receive block")
+			}
+		} else {
+			return Other, err
+		}
+	} else {
+		//call vm.Run();
+		return Other, fmt.Errorf("can not find chain contract %s", address.String())
+	}
+}
+
+func (l *Ledger) checkStateBlock(block *types.StateBlock) (ProcessResult, error) {
+	if fn, ok := checkBlockFn[block.Type]; ok {
+		return fn(l, block)
+	} else {
+		return Other, fmt.Errorf("unsupport block type %s", block.Type.String())
+	}
 }
 
 func (l *Ledger) BlockProcess(block types.Block) error {

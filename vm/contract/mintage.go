@@ -49,7 +49,7 @@ func (m *Mintage) DoSend(ledger *l.Ledger, block *types.StateBlock) error {
 	}
 
 	if block.Data, err = cabi.ABIMintage.PackMethod(
-		cabi.VariableNameToken,
+		cabi.MethodNameMintage,
 		tokenId,
 		param.TokenName,
 		param.TokenSymbol,
@@ -93,6 +93,7 @@ func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *ty
 	if amount.Sign() == 0 {
 		tokenInfo, _ = cabi.ABIMintage.PackVariable(
 			cabi.VariableNameToken,
+			param.Token,
 			param.TokenName,
 			param.TokenSymbol,
 			param.TotalSupply,
@@ -104,6 +105,7 @@ func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *ty
 		withdrawTime := time.Now().UTC().Add(time.Hour * minWithdrawTime).Unix()
 		tokenInfo, _ = cabi.ABIMintage.PackVariable(
 			cabi.VariableNameToken,
+			param.Token,
 			param.TokenName,
 			param.TokenSymbol,
 			param.TotalSupply,
@@ -112,6 +114,8 @@ func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *ty
 			amount.Int,
 			withdrawTime)
 	}
+
+	block.Data = tokenInfo
 	_ = ledger.SetStorage(param.Token[:], tokenInfo)
 	return []*ContractBlock{
 		{
@@ -171,6 +175,7 @@ func (m *WithdrawMintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, i
 
 	newTokenInfo, _ := cabi.ABIMintage.PackVariable(
 		cabi.VariableNameToken,
+		tokenInfo.TokenId,
 		tokenInfo.TokenName,
 		tokenInfo.TokenSymbol,
 		tokenInfo.TotalSupply,

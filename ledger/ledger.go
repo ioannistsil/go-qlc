@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/qlcchain/go-qlc/common"
-	"github.com/qlcchain/go-qlc/crypto/ed25519"
 	"io"
 	"math/rand"
 	"sort"
@@ -14,8 +12,10 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
+	"github.com/qlcchain/go-qlc/common"
 	"github.com/qlcchain/go-qlc/common/types"
 	"github.com/qlcchain/go-qlc/common/util"
+	"github.com/qlcchain/go-qlc/crypto/ed25519"
 	"github.com/qlcchain/go-qlc/ledger/db"
 	"github.com/qlcchain/go-qlc/log"
 	cabi "github.com/qlcchain/go-qlc/vm/contract/abi"
@@ -229,28 +229,13 @@ func (l *Ledger) addPosterior(previous, block types.Hash, txn db.StoreTxn) error
 	return nil
 }
 
-func (l *Ledger) isGenesisBlock(blk *types.StateBlock, txn db.StoreTxn) (bool, error) {
-	pre := blk.GetPrevious()
-
-	if pre.IsZero() && blk.GetData() != nil && !util.BytesEqual(blk.GetData(), []byte{}) {
+func (l *Ledger) addTokenInfo(blk *types.StateBlock, txn db.StoreTxn) error {
+	if blk.GetType() == types.ContractReward {
 		linkBlock, err := l.GetStateBlock(blk.GetLink(), txn)
 		if err != nil {
-			return false, err
+			return err
 		}
-		if linkBlock.GetLink() == types.Hash(types.MintageAddress) {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func (l *Ledger) addTokenInfo(blk *types.StateBlock, txn db.StoreTxn) error {
-	isGenesis, err := l.isGenesisBlock(blk, txn)
-	if err != nil {
-		return err
-	}
-	if isGenesis {
-		token, err := cabi.ParseTokenInfo(blk.GetData())
+		token, err := cabi.ParseTokenInfo(linkBlock.GetData())
 		if err != nil {
 			return err
 		}
@@ -407,11 +392,7 @@ func (l *Ledger) deletePosterior(blk *types.StateBlock, txn db.StoreTxn) error {
 }
 
 func (l *Ledger) deleteTokenInfo(blk *types.StateBlock, txn db.StoreTxn) error {
-	isGenesis, err := l.isGenesisBlock(blk, txn)
-	if err != nil {
-		return err
-	}
-	if isGenesis {
+	if blk.GetType() == types.ContractReward {
 		token, err := cabi.ParseTokenInfo(blk.GetData())
 		if err != nil {
 			return err

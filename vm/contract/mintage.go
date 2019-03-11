@@ -9,11 +9,11 @@ package contract
 
 import (
 	"errors"
-	"github.com/qlcchain/go-qlc/common"
 	"math/big"
 	"regexp"
 	"time"
 
+	"github.com/qlcchain/go-qlc/common"
 	"github.com/qlcchain/go-qlc/common/types"
 	"github.com/qlcchain/go-qlc/common/util"
 	l "github.com/qlcchain/go-qlc/ledger"
@@ -89,7 +89,7 @@ func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *ty
 	}
 
 	var tokenInfo []byte
-	_, amount := ledger.CalculateAmount(input)
+	amount, _ := ledger.CalculateAmount(input)
 	if amount.Sign() == 0 {
 		tokenInfo, _ = cabi.ABIMintage.PackVariable(
 			cabi.VariableNameToken,
@@ -144,7 +144,7 @@ func (m *WithdrawMintage) GetFee(ledger *l.Ledger, block *types.StateBlock) (typ
 }
 
 func (m *WithdrawMintage) DoSend(ledger *l.Ledger, block *types.StateBlock) error {
-	if isSend, amount := ledger.CalculateAmount(block); amount.Compare(types.ZeroBalance) != types.BalanceCompEqual || !isSend {
+	if amount, err := ledger.CalculateAmount(block); block.Type != types.Send || amount.Compare(types.ZeroBalance) != types.BalanceCompEqual || err != nil {
 		return errors.New("invalid block ")
 	}
 	tokenId := new(types.Hash)

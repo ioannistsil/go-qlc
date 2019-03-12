@@ -8,18 +8,18 @@ import (
 )
 
 type NetApi struct {
-	dpos   *consensus.DposService
+	dpos   *consensus.DPoS
 	logger *zap.SugaredLogger
 }
 
-func NewNetApi(dpos *consensus.DposService) *NetApi {
+func NewNetApi(dpos *consensus.DPoS) *NetApi {
 	return &NetApi{dpos: dpos, logger: log.NewLogger("rpc/net")}
 }
 
-func (q *NetApi) OnlineRepresentatives() []types.Address {
+func (q *NetApi) OnlineRepresentatives() []*types.Address {
 	as := q.dpos.GetOnlineRepresentatives()
 	if as == nil {
-		return make([]types.Address, 0)
+		return make([]*types.Address, 0)
 	}
 	return as
 }

@@ -16,7 +16,7 @@ import (
 type QlcApi struct {
 	ledger   *ledger.Ledger
 	verifier *process.LedgerVerifier
-	dpos     *consensus.DposService
+	dpos     *consensus.DPoS
 	logger   *zap.SugaredLogger
 }
 
@@ -26,7 +26,7 @@ type TokenPending struct {
 	Hash        types.Hash         `json:"hash"`
 }
 
-func NewQlcApi(l *ledger.Ledger, dpos *consensus.DposService) *QlcApi {
+func NewQlcApi(l *ledger.Ledger, dpos *consensus.DPoS) *QlcApi {
 	return &QlcApi{ledger: l, dpos: dpos, verifier: process.NewLedgerVerifier(l), logger: log.NewLogger("rpcapi")}
 }
 
@@ -109,10 +109,10 @@ func (q *QlcApi) AccountsPending(addresses []types.Address, n int) (map[types.Ad
 	return apMap, nil
 }
 
-func (q *QlcApi) GetOnlineRepresentatives() []types.Address {
+func (q *QlcApi) GetOnlineRepresentatives() []*types.Address {
 	as := q.dpos.GetOnlineRepresentatives()
 	if as == nil {
-		return make([]types.Address, 0)
+		return make([]*types.Address, 0)
 	}
 	return as
 }

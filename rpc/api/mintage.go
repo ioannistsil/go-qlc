@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 	"math/big"
 	"sort"
+	"time"
 )
 
 type MintageApi struct {
@@ -86,6 +87,7 @@ func (m *MintageApi) GetMintageBlock(param MintageParams) (*types.StateBlock, er
 		Link:           types.Hash(types.MintageAddress),
 		Representative: tm.Representative,
 		Data:           data,
+		Timestamp:      time.Now().UTC().Unix(),
 	}
 
 	err = m.mintage.DoSend(m.ledger, send)
@@ -108,7 +110,6 @@ func (m *MintageApi) GetRewardBlock(input *types.StateBlock) (*types.StateBlock,
 	}
 
 	return nil, errors.New("can not generate reward block")
-
 }
 
 func (m *MintageApi) GetWithdrawMintageData(tokenId types.Hash) ([]byte, error) {

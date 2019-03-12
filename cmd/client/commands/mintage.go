@@ -161,10 +161,19 @@ func mintageAction(account, preHash, tokenName, tokenSymbol, totalSupply string,
 
 	fmt.Println("send: " + util.ToString(send))
 
+	err = client.Call(nil, "ledger_process", &send)
+	if err != nil {
+		return err
+	}
+
 	err = client.Call(&send, "mintage_getMintageBlock", &mintageParam)
 
 	reward := types.StateBlock{}
 	err = client.Call(&reward, "mintage_getRewardBlock", send)
+
+	if err != nil {
+		return err
+	}
 
 	reward.Address = a.Address()
 	reward.Representative = a.Address()
@@ -176,11 +185,6 @@ func mintageAction(account, preHash, tokenName, tokenSymbol, totalSupply string,
 	reward.Work = worker2.NewWork()
 
 	fmt.Println("reward: " + util.ToString(reward))
-
-	err = client.Call(nil, "ledger_process", &send)
-	if err != nil {
-		return err
-	}
 
 	err = client.Call(nil, "ledger_process", &reward)
 	if err != nil {

@@ -22,7 +22,7 @@ import (
 )
 
 var (
-	minPledgeAmount      = big.NewInt(1e12)           //QLC
+	minPledgeAmount      = big.NewInt(1e12)           // 10K QLC
 	tokenNameLengthMax   = 40                         // Maximum length of a token name(include)
 	tokenSymbolLengthMax = 10                         // Maximum length of a token symbol(include)
 	minWithdrawTime      = time.Duration(24 * 30 * 3) // minWithdrawTime 3 months
@@ -82,12 +82,8 @@ func verifyToken(param cabi.ParamMintage) error {
 func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *types.StateBlock) ([]*ContractBlock, error) {
 	param := new(cabi.ParamMintage)
 	_ = cabi.ABIMintage.UnpackMethod(param, cabi.MethodNameMintage, input.Data)
-	if ti, err := ledger.GetStorage(types.MintageAddress[:], param.Token[:]); err == nil {
-		if len(ti) > 0 {
-			return nil, fmt.Errorf("invalid token")
-		}
-	} else {
-		return nil, err
+	if _, err := ledger.GetStorage(types.MintageAddress[:], param.TokenId[:]); err == nil {
+		return nil, fmt.Errorf("invalid token")
 	}
 
 	var tokenInfo []byte
@@ -97,7 +93,7 @@ func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *ty
 		input.Token == common.QLCChainToken {
 		tokenInfo, _ = cabi.ABIMintage.PackVariable(
 			cabi.VariableNameToken,
-			param.Token,
+			param.TokenId,
 			param.TokenName,
 			param.TokenSymbol,
 			param.TotalSupply,
@@ -109,16 +105,19 @@ func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *ty
 		return nil, fmt.Errorf("invalid block amount %d", amount.Int)
 	}
 
+	exp := new(big.Int).Exp(util.Big10, new(big.Int).SetUint64(uint64(param.Decimals)), nil)
+	totalSupply := types.Balance{Int: new(big.Int).Mul(param.TotalSupply, exp)}
+
 	block.Type = types.ContractReward
-	block.Token = param.Token
+	block.Token = param.TokenId
 	block.Link = input.Address.ToHash()
 	block.Data = tokenInfo
 	block.Previous = types.ZeroHash
-	totalSupply := types.Balance{Int: param.TotalSupply}
 	block.Balance = totalSupply
+	block.Timestamp = time.Now().UTC().Unix()
 
 	//block.Data = tokenInfo
-	if err := ledger.SetStorage(types.MintageAddress[:], param.Token[:], tokenInfo); err != nil {
+	if err := ledger.SetStorage(types.MintageAddress[:], param.TokenId[:], tokenInfo); err != nil {
 		return nil, err
 	}
 
@@ -128,7 +127,7 @@ func (m *Mintage) DoReceive(ledger *l.Ledger, block *types.StateBlock, input *ty
 			ToAddress: input.Address,
 			BlockType: types.ContractReward,
 			Amount:    totalSupply,
-			Token:     param.Token,
+			Token:     param.TokenId,
 			Data:      tokenInfo,
 		},
 	}, nil

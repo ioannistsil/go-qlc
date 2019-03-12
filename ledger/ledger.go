@@ -1786,7 +1786,7 @@ func (l *Ledger) CalculateAmount(block *types.StateBlock, txns ...db.StoreTxn) (
 	switch block.GetType() {
 	case types.Open:
 		return block.GetBalance(), err
-	case types.Send:
+	case types.Send, types.ContractSend:
 		if prev, err = l.GetStateBlock(block.Previous); err != nil {
 			return types.ZeroBalance, err
 		}
@@ -1800,8 +1800,6 @@ func (l *Ledger) CalculateAmount(block *types.StateBlock, txns ...db.StoreTxn) (
 		return types.ZeroBalance, nil
 	case types.ContractReward:
 		return block.GetBalance(), nil
-	case types.ContractSend:
-		return types.ZeroBalance, nil
 	default:
 		return types.ZeroBalance, errors.New("invalid block type")
 	}

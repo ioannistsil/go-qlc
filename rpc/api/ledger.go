@@ -563,6 +563,10 @@ func (l *LedgerApi) Process(block *types.StateBlock) (types.Hash, error) {
 		return types.ZeroHash, errors.New("balance mismatch")
 	case process.UnReceivable:
 		return types.ZeroHash, errors.New("unReceivable")
+	case process.GapSmartContract:
+		return types.ZeroHash, errors.New("gap SmartContract")
+	case process.InvalidData:
+		return types.ZeroHash, errors.New("invalid data")
 	default:
 		return types.ZeroHash, errors.New("error processing block")
 	}

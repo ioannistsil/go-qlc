@@ -51,7 +51,7 @@ type Store interface {
 	SubRepresentation(address types.Address, amount types.Balance, txns ...db.StoreTxn) error
 	GetRepresentation(address types.Address, txns ...db.StoreTxn) (types.Balance, error)
 	GetRepresentations(fn func(types.Address, types.Balance) error, txns ...db.StoreTxn) error
-	GetOnlineRepresentations(txns ...db.StoreTxn) ([]*types.Address, error)
+	GetOnlineRepresentations(txns ...db.StoreTxn) ([]types.Address, error)
 	SetOnlineRepresentations(addresses []*types.Address, txns ...db.StoreTxn) error
 	// unchecked CURD
 	AddUncheckedBlock(parentHash types.Hash, blk *types.StateBlock, kind types.UncheckedKind, sync types.SynchronizedKind, txns ...db.StoreTxn) error

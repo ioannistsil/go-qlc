@@ -2,14 +2,13 @@ package api
 
 import (
 	"fmt"
+	"github.com/qlcchain/go-qlc/consensus"
 	"github.com/qlcchain/go-qlc/ledger/process"
 
 	"github.com/pkg/errors"
 	"github.com/qlcchain/go-qlc/common/types"
-	"github.com/qlcchain/go-qlc/consensus"
 	"github.com/qlcchain/go-qlc/ledger"
 	"github.com/qlcchain/go-qlc/log"
-	"github.com/qlcchain/go-qlc/p2p"
 	"go.uber.org/zap"
 )
 
@@ -109,10 +108,10 @@ func (q *QlcApi) AccountsPending(addresses []types.Address, n int) (map[types.Ad
 	return apMap, nil
 }
 
-func (q *QlcApi) GetOnlineRepresentatives() []*types.Address {
-	as := q.dpos.GetOnlineRepresentatives()
+func (q *QlcApi) GetOnlineRepresentatives() []types.Address {
+	as, _ := q.ledger.GetOnlineRepresentations()
 	if as == nil {
-		return make([]*types.Address, 0)
+		return make([]types.Address, 0)
 	}
 	return as
 }
@@ -161,7 +160,8 @@ func (q *QlcApi) Process(block *types.StateBlock) (types.Hash, error) {
 	switch flag {
 	case process.Progress:
 		q.logger.Debug("broadcast block")
-		q.dpos.GetP2PService().Broadcast(p2p.PublishReq, block)
+		//TODO: fix this
+		//q.dpos.GetP2PService().Broadcast(p2p.PublishReq, block)
 		return block.GetHash(), nil
 	case process.BadWork:
 		return types.ZeroHash, errors.New("bad work")

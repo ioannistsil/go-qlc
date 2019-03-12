@@ -1906,11 +1906,10 @@ func (l *Ledger) CalculateAmount(block *types.StateBlock, txns ...db.StoreTxn) (
 	case types.ContractReward:
 		return block.GetBalance(), nil
 	case types.ContractSend:
-		return block.GetBalance(), nil
+		return types.ZeroBalance, nil
 	default:
 		return types.ZeroBalance, errors.New("invalid block type")
 	}
-
 }
 
 func (l *Ledger) generateWork(hash types.Hash) types.Work {

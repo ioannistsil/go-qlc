@@ -72,7 +72,7 @@ func (dps *DPoS) refreshAccount() {
 		return true
 	})
 	if count > 1 {
-		dps.logger.Error("it is very dangerous to run two representatives on one node")
+		dps.logger.Error("it is very dangerous to run two or more representatives on one node")
 	}
 }
 

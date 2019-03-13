@@ -307,8 +307,8 @@ func (dps *DPoS) cleanOnlineReps() {
 	now := time.Now().Add(repTimeout).UTC().Unix()
 	dps.onlineReps.Range(func(key, value interface{}) bool {
 		addr := key.(*types.Address)
-		v := value.(*int64)
-		if *v < now {
+		v := value.(int64)
+		if v < now {
 			dps.onlineReps.Delete(addr)
 		} else {
 			repAddresses = append(repAddresses, addr)

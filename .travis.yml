@@ -44,20 +44,26 @@ script:
 after_success:
   - bash <(curl -s https://codecov.io/bash)
   - chmod +x ./docker/build.sh && ./docker/build.sh
+  - chmod +x ./docker/docker_push.sh && ./docker/docker_push.sh
 
 #before_deploy:
 #- make clean all -j2
 
 deploy:
-  provider: releases
-  api_key:
-    secure: $GITHUB_TOKEN
-  file: build/*
-  file_glob: true
-  skip_cleanup: true
-  draft: true
-  on:
-    tags: true
+  - provider: releases
+    api_key:
+      secure: $GITHUB_TOKEN
+    file: build/*
+    file_glob: true
+    skip_cleanup: true
+    draft: true
+    on:
+      tags: true
+  - provider: script
+    script: docker/docker_push.sh
+    on:
+      tags: true
+      all_branches: true
 
 notifications:
   email: false

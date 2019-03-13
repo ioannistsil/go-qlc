@@ -13,17 +13,23 @@ cache:
     - $HOME/.cache/go-build
     - $HOME/gopath/pkg/mod
 
+services:
+  - docker
+
 sudo: true
 
 before_install:
- - sudo apt install -y linux-headers-$(uname -r)
- - ls -l /usr/src/linux-headers-$(uname -r)
+  - docker --version
+#  - sudo apt install -y linux-headers-$(uname -r)
+#  - ls -l /usr/src/linux-headers-$(uname -r)
 #  - sudo apt-get install --only-upgrade git-core
 #  - git --version
 
 addons:
   apt:
     update: true
+    packages:
+      - docker-ce
 
 env:
  global:
@@ -37,6 +43,7 @@ script:
 
 after_success:
   - bash <(curl -s https://codecov.io/bash)
+  - chmod +x ./docker/build.sh && ./docker/build.sh
 
 #before_deploy:
 #- make clean all -j2
@@ -51,7 +58,6 @@ deploy:
   draft: true
   on:
     tags: true
-
 
 notifications:
   email: false

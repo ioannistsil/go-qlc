@@ -8,6 +8,7 @@ import (
 
 	"github.com/qlcchain/go-qlc/common"
 	"github.com/qlcchain/go-qlc/common/types"
+	"github.com/qlcchain/go-qlc/common/util"
 	"github.com/qlcchain/go-qlc/consensus"
 	"github.com/qlcchain/go-qlc/ledger"
 	"github.com/qlcchain/go-qlc/ledger/process"
@@ -204,7 +205,7 @@ func (l *LedgerApi) AccountVotingWeight(addr types.Address) (types.Balance, erro
 	return l.ledger.GetRepresentation(addr)
 }
 
-func (l *LedgerApi) AccountsBalances(addresses []types.Address) (map[types.Address]map[string]map[string]types.Balance, error) {
+func (l *LedgerApi) AccountsBalance(addresses []types.Address) (map[types.Address]map[string]map[string]types.Balance, error) {
 	as := make(map[types.Address]map[string]map[string]types.Balance)
 
 	for _, addr := range addresses {
@@ -479,7 +480,7 @@ func (l *LedgerApi) DelegatorsCount(hash types.Address) (int64, error) {
 }
 
 type APISendBlockPara struct {
-	Send      types.Address `json:"send"`
+	From      types.Address `json:"from"`
 	TokenName string        `json:"tokenName"`
 	To        types.Address `json:"to"`
 	Amount    types.Balance `json:"amount"`
@@ -489,7 +490,8 @@ type APISendBlockPara struct {
 }
 
 func (l *LedgerApi) GenerateSendBlock(para APISendBlockPara, prkStr string) (*types.StateBlock, error) {
-	if para.Amount.Int == nil || para.Send.IsZero() || para.To.IsZero() || para.TokenName == "" {
+	fmt.Println(util.ToString(para))
+	if para.Amount.Int == nil || para.From.IsZero() || para.To.IsZero() || para.TokenName == "" {
 		return nil, errors.New("invalid send parameter")
 	}
 	prk, err := hex.DecodeString(prkStr)
@@ -500,12 +502,21 @@ func (l *LedgerApi) GenerateSendBlock(para APISendBlockPara, prkStr string) (*ty
 	if err != nil {
 		return nil, err
 	}
+
+	s, err := phoneNumberSeri(para.Sender)
+	if err != nil {
+		return nil, errors.New("error sender")
+	}
+	r, err := phoneNumberSeri(para.Receiver)
+	if err != nil {
+		return nil, errors.New("error receiver")
+	}
 	sb := types.StateBlock{
-		Address:  para.Send,
+		Address:  para.From,
 		Token:    info.TokenId,
 		Link:     para.To.ToHash(),
-		Sender:   para.Sender,
-		Receiver: para.Receiver,
+		Sender:   s,
+		Receiver: r,
 		Message:  para.Message,
 	}
 	block, err := l.ledger.GenerateSendBlock(&sb, para.Amount, prk)

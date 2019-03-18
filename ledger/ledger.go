@@ -1617,7 +1617,7 @@ func (l *Ledger) rollBackTokenDel(tm *types.TokenMeta, txn db.StoreTxn) error {
 }
 
 func (l *Ledger) rollBackRep(address types.Address, balance types.Balance, isSend bool, token types.Hash, txn db.StoreTxn) error {
-	if token == common.QLCChainToken {
+	if token == common.ChainToken() {
 		if isSend {
 			l.logger.Debugf("add rep %s to %s", balance, address)
 			if err := l.AddRepresentation(address, balance, txn); err != nil {
@@ -1778,7 +1778,7 @@ func (l *Ledger) CalculateAmount(block *types.StateBlock, txns ...db.StoreTxn) (
 	case types.ContractReward:
 		return block.GetBalance(), nil
 	case types.ContractSend:
-		if block.GetToken() == common.QLCChainToken {
+		if block.GetToken() == common.ChainToken() {
 			return block.GetBalance(), nil
 		} else {
 			if prev, err = l.GetStateBlock(block.Previous); err != nil {
@@ -1981,7 +1981,7 @@ func (l *Ledger) GenerateChangeBlock(account types.Address, representative types
 	}
 
 	//get latest chain token block
-	hash := l.Latest(account, common.QLCChainToken)
+	hash := l.Latest(account, common.ChainToken())
 	if hash.IsZero() {
 		return nil, fmt.Errorf("account [%s] does not have the main chain account", account.String())
 	}
@@ -1991,7 +1991,7 @@ func (l *Ledger) GenerateChangeBlock(account types.Address, representative types
 		return nil, err
 	}
 
-	tm, err := l.GetTokenMeta(account, common.QLCChainToken)
+	tm, err := l.GetTokenMeta(account, common.ChainToken())
 	sb := types.StateBlock{
 		Type:           types.Change,
 		Address:        account,
